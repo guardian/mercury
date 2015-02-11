@@ -1,12 +1,10 @@
 package mercury
 
-import org.joda.time.{DateTime, LocalDate}
+import org.joda.time.DateTime
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 import org.parboiled2.{Parser, ParserInput}
-
 import scala.collection.JavaConverters._
-
 
 case class Promotion(
   dt: DateTime,
@@ -20,7 +18,7 @@ case class Promotion(
 
 object PageScanner {
   case class SimpleLink(href: String, componentName: Option[String] = None, isSublink: Boolean) {
-    def isContent: Boolean = true//GuardianPathParser(href).contentPath.run()
+    def isContent: Boolean = PathClassifier(href).IsContent.run().isSuccess
   }
 
   def findPromotions(page: Page): Set[Promotion] = {
@@ -62,30 +60,27 @@ object PageScanner {
   }
 }
 
-class GuardianPathParser(val input: ParserInput) extends Parser {
+case class PathClassifier(input: ParserInput) extends Parser {
   import org.parboiled2.CharPredicate._
 
-  def isContent = rule {
-    anything ~ Date ~ anything ~> ((d) => true)
+  def IsContent = rule {
+    NotDate ~ Date ~ "/" ~ NotDate
   }
 
   def Date = rule {
-    (Year ~ "/" ~ Month ~ "/" ~ Day) ~>
-      ((y, m, d) => new LocalDate(y, m, d))
+    Year ~ "/" ~ Month ~ "/" ~ Day
   }
 
-  def Year = rule { capture(4 times Digit) ~> (y => y.toInt) }
+  private def Year = rule { 4 times Digit}
 
-  def Day = rule { capture(1 to 2 times Digit) ~> (d => d.toInt) }
+  private def Day = rule { 2 times Digit}
 
-  def Month = rule {
-    Map(
-      "jan" -> 1, "feb" -> 2, "mar" -> 3, "apr" -> 4, "may" -> 5, "jun" -> 6,
-      "jul" -> 7, "aug" -> 8, "sep" -> 9, "oct" -> 10, "nov" -> 11, "dec" -> 12
-    )
+  private def Month = rule {
+      "jan" | "feb" | "mar" | "apr" | "may" | "jun" |
+      "jul" | "aug" | "sep" | "oct" | "nov" | "dec"
   }
 
-  def anything = rule {
+  private def NotDate = rule {
     oneOrMore(!Date ~ ANY)
   }
 }
