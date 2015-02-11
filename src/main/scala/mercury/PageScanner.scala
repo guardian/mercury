@@ -1,10 +1,11 @@
 package mercury
 
+import org.joda.time.{DateTime, LocalDate}
 import org.jsoup.Jsoup
-import java.net.URL
 import org.jsoup.nodes.Element
-import collection.JavaConverters._
-import org.joda.time.DateTime
+import org.parboiled2.{Parser, ParserInput}
+
+import scala.collection.JavaConverters._
 
 
 case class Promotion(
@@ -18,14 +19,12 @@ case class Promotion(
 }
 
 object PageScanner {
-  case class SimpleLink(href: String, componentName: Option[String] = None, isSublink: Boolean)
+  case class SimpleLink(href: String, componentName: Option[String] = None, isSublink: Boolean) {
+    def isContent: Boolean = true//GuardianPathParser(href).contentPath.run()
+  }
 
   def findPromotions(page: Page): Set[Promotion] = {
-    // workaround our astonishingly crap geo location rules
-    // need to set GU_EDITION to uk to actually get the UK edition from google's US servers
-    // aarrrrrrgh!!!
     val conn = page.url.openConnection()
-    conn.setRequestProperty("X-GU-GeoLocation", s"ip:10.0.0.1,country:${page.country}")
     conn.setRequestProperty("User-Agent", "mercury; contact graham.tackley@guardian.co.uk")
 
     val doc = Jsoup.parse(conn.getInputStream, "UTF-8", page.url.toString)
@@ -45,8 +44,7 @@ object PageScanner {
       SimpleLink(href, comp, isSublink)
     }
 
-
-    val grouped = links.groupBy(_.componentName)
+    val grouped = links.filter(_.isContent).groupBy(_.componentName)
 
     val dt = DateTime.now
 
@@ -61,5 +59,33 @@ object PageScanner {
     }
 
     proms.toSet
+  }
+}
+
+class GuardianPathParser(val input: ParserInput) extends Parser {
+  import org.parboiled2.CharPredicate._
+
+  def isContent = rule {
+    anything ~ Date ~ anything ~> ((d) => true)
+  }
+
+  def Date = rule {
+    (Year ~ "/" ~ Month ~ "/" ~ Day) ~>
+      ((y, m, d) => new LocalDate(y, m, d))
+  }
+
+  def Year = rule { capture(4 times Digit) ~> (y => y.toInt) }
+
+  def Day = rule { capture(1 to 2 times Digit) ~> (d => d.toInt) }
+
+  def Month = rule {
+    Map(
+      "jan" -> 1, "feb" -> 2, "mar" -> 3, "apr" -> 4, "may" -> 5, "jun" -> 6,
+      "jul" -> 7, "aug" -> 8, "sep" -> 9, "oct" -> 10, "nov" -> 11, "dec" -> 12
+    )
+  }
+
+  def anything = rule {
+    oneOrMore(!Date ~ ANY)
   }
 }
