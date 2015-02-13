@@ -37,8 +37,7 @@ object PageScanner {
     val links = for (link <- elems) yield {
       val href = link.attr("abs:href").takeWhile('?' != _).takeWhile('#' != _)
       val comp = findDataComponent(link)
-      val isSublink = link.parents().asScala.exists(_.hasClass("sublinks"))
-
+      val isSublink = link.parents().asScala.exists(e => e.attr("data-link-name").contains("sublink"))
       SimpleLink(href, comp, isSublink)
     }
 
