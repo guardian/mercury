@@ -95,13 +95,16 @@ object Store {
     )
   }
 
-
   def findHistory(url: String): List[HistoryEntry] = {
     val q = new Query("history")
       .setFilter(FilterOperator.EQUAL.of("targetUrl", url.asLink))
-
     ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList
   }
 
-
+  def latestBySource(url: String): List[HistoryEntry] = {
+    val groupedBySourcePage = findHistory(url).groupBy(p => p.pos.src.url)
+    groupedBySourcePage.map {
+      case (url, promotions) => promotions.sortBy(p => p.to).reverse.head
+    }.toList
+  }
 }
