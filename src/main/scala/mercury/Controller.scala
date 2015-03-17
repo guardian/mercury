@@ -39,9 +39,10 @@ class Controller extends unfiltered.filter.Plan {
     case r@ GET(Path("/history.json") & Params(p)) =>
       val url = p("url").headOption getOrElse sys.error("missing url")
       val callback = p("callback").headOption
+      val tz = p("tz").headOption
       val history = Store.findHistory(url)
 
-      val json = renderJsonResponse(history)
+      val json = renderJsonResponse(history, tz)
 
       val resp = callback.map(
         c => ResponseString(s"$c($json)") ~> JsContent
@@ -88,7 +89,7 @@ class Controller extends unfiltered.filter.Plan {
 
   }
 
-  def renderJsonResponse(entries: List[HistoryEntry]): String = {
+  def renderJsonResponse(entries: List[HistoryEntry], tz: Option[String] = None): String = {
     import spray.json._
     import spray.json.DefaultJsonProtocol._
 
@@ -112,8 +113,8 @@ class Controller extends unfiltered.filter.Plan {
       HistoryResponse(
         from = entry.from.getMillis,
         to = entry.to.getMillis,
-        formattedFrom = RelativeDateTimeFormatter.print(entry.from),
-        formattedTo = RelativeDateTimeFormatter.print(entry.to),
+        formattedFrom = RelativeDateTimeFormatter.print(entry.from, tz = tz),
+        formattedTo = RelativeDateTimeFormatter.print(entry.to, tz = tz),
         srcPageName = entry.pos.src.name,
         srcPageUrl = entry.pos.src.url.toString,
         component = entry.pos.component,
