@@ -1,6 +1,6 @@
 package mercury
 
-import org.joda.time.{DateTimeZone, Duration, DateTime}
+import org.joda.time.{DateTime, DateTimeZone}
 
 object RelativeDateTimeFormatter {
 

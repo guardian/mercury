@@ -1,5 +1,5 @@
 application: e~gu-mercury
-version: 6
+version: 7
 runtime: java
 threadsafe: true
 
