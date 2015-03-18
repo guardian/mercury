@@ -43,7 +43,7 @@ object PageScanner {
       component.map { c =>
         val href = link.attr("abs:href").takeWhile('?' != _).takeWhile('#' != _)
         val isSublink = link.parents().asScala.exists(e => e.attr("data-link-name").contains("sublink"))
-        SimpleLink(href, Some(c), isSublink)
+        SimpleLink(href, Option(c), isSublink)
       }.toList
     }
 
@@ -57,7 +57,7 @@ object PageScanner {
       componentName <- optionalComponent
     } yield {
       val simpleComp = componentName.split(":").map(_.trim).filterNot(_.isEmpty).last
-      val position = Position(page, simpleComp, Some(topPos), sublinkPos)
+      val position = Position(page, simpleComp, Option(topPos), sublinkPos)
       Promotion(dt, href, position)
     }
 

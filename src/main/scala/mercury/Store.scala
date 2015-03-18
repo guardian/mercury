@@ -72,7 +72,7 @@ object Store {
     Position(
       src = Page.fromUrl(e.getProperty("srcUrl").asInstanceOf[GaeLink].getValue),
       component = e.getProperty("component").toString,
-      idx = Some(e.getProperty("topPosition").asInstanceOf[Long].toInt),
+      idx = Option(e.getProperty("topPosition").asInstanceOf[Long].toInt),
       sublinkIdx = Option(e.getProperty("sublinkPosition")).map(_.asInstanceOf[Long].toInt)
     )
   }
