@@ -4,8 +4,8 @@ package mercury
 case class Position(
   src: Page,
   component: String,
-  idx: Option[Int],
-  sublinkIdx: Option[Int]
+  idx: Option[Int] = None,
+  sublinkIdx: Option[Int] = None
 ) {
   def inWords =
     s"""${src.name} "$component" position ${idx.getOrElse("?")}""" +

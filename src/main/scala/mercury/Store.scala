@@ -117,9 +117,7 @@ object Store {
 
             val position = Position(
               src = historyEntriesInComponent.head.pos.src,
-              component = componentName,
-              idx = None,
-              sublinkIdx = None
+              component = componentName
             )
 
             HistoryEntry(
