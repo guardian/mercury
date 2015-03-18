@@ -112,8 +112,8 @@ object Store {
         val groupedByComponent = historyEntriesOnFront.groupBy(_.pos.component)
         groupedByComponent.map {
           case (componentName, historyEntriesInComponent) =>
-            val firstSeen = reduce(historyEntriesInComponent, min).from.getMillis
-            val lastSeen = reduce(historyEntriesInComponent, max).to.getMillis
+            val firstSeen = reduce(historyEntriesInComponent, fromDateTime, min).from.getMillis
+            val lastSeen = reduce(historyEntriesInComponent, toDateTime, max).to.getMillis
 
             val position = Position(
               src = historyEntriesInComponent.head.pos.src,
@@ -130,11 +130,14 @@ object Store {
     }.toList.flatten.sortBy(_.from).reverse
   }
 
+  type DateTimeRetriever = (HistoryEntry) => DateTime
+  def fromDateTime(he: HistoryEntry): DateTime = he.from
+  def toDateTime(he: HistoryEntry): DateTime = he.to
+
+  def reduce(entries: List[HistoryEntry], getDateTime: DateTimeRetriever, comparator: ReduceLeftComparator): HistoryEntry =
+    entries.reduceLeft((l,r) => if(comparator(getDateTime(l), getDateTime(r))) l else r)
+
   type ReduceLeftComparator = (DateTime, DateTime) => Boolean
-
-  def reduce(entries: List[HistoryEntry], comparator: ReduceLeftComparator): HistoryEntry =
-    entries.reduceLeft((l,r) => if(comparator(l.from, r.from)) l else r)
-
   def min(thiz: DateTime, that: DateTime): Boolean = thiz.getMillis < that.getMillis
   def max(thiz: DateTime, that: DateTime): Boolean = thiz.getMillis > that.getMillis
 }
