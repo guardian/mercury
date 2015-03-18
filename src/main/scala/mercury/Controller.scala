@@ -1,12 +1,10 @@
 package mercury
 
-import unfiltered.request._
-import unfiltered.response._
-import org.joda.time.format.ISODateTimeFormat
-import unfiltered.response.ResponseString
+import com.google.appengine.api.datastore.{Key, KeyFactory}
 import org.joda.time.DateTime
-import com.google.appengine.api.datastore.{KeyFactory, Key}
-import java.net.URL
+import org.joda.time.format.ISODateTimeFormat
+import unfiltered.request._
+import unfiltered.response.{ResponseString, _}
 
 class Controller extends unfiltered.filter.Plan {
   val dateFormat = ISODateTimeFormat.dateTimeNoMillis()
@@ -58,6 +56,28 @@ class Controller extends unfiltered.filter.Plan {
         Ok ~> resp
       }
 
+    case r@ GET(Path("/history-by-container.json") & Params(p)) =>
+      val url = p("url").headOption getOrElse sys.error("missing url")
+      val callback = p("callback").headOption
+      val tz = p("tz").headOption
+      val history = Store.findHistoryByContainer(url)
+
+      val json = renderJsonResponse(history, tz)
+
+      val resp = callback.map(
+        c => ResponseString(s"$c($json)") ~> JsContent
+      ) getOrElse (
+        ResponseString(json) ~> JsonContent
+        )
+
+      val origin = r.headers("Origin").toList.headOption
+
+      Cors.headers(origin).map { originHeader =>
+        Ok ~> originHeader ~> resp
+      }.getOrElse {
+        Ok ~> resp
+      }
+
     case r@ GET(Path("/latest.json") & Params(p)) =>
       val url = p("url").headOption getOrElse sys.error("missing url")
       val callback = p("callback").headOption
@@ -90,8 +110,8 @@ class Controller extends unfiltered.filter.Plan {
   }
 
   def renderJsonResponse(entries: List[HistoryEntry], tz: Option[String] = None): String = {
-    import spray.json._
     import spray.json.DefaultJsonProtocol._
+    import spray.json._
 
     case class HistoryResponse(
       from: Long,

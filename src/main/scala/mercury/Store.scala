@@ -101,6 +101,37 @@ object Store {
     ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList.sortBy(_.from).reverse
   }
 
+  def findHistoryByContainer(url: String): List[HistoryEntry] = {
+    val history = findHistory(url).filterNot(h => h.pos.component == "most-popular")
+
+    val groupedByFront: Map[String, List[HistoryEntry]] = history.groupBy(_.pos.src.url.toString)
+
+    groupedByFront.map {
+      case (frontUrl, historyEntries) =>
+        val groupedByComponent = historyEntries.groupBy(_.pos.component)
+        groupedByComponent.map {
+          case (componentName, historyEntries) => {
+            val firstSeen = historyEntries.reduceLeft((l,r) => if(l.from.getMillis < r.from.getMillis) l else r).from.getMillis
+            val lastSeen = historyEntries.reduceLeft((l,r) => if(l.to.getMillis > r.to.getMillis) l else r).to.getMillis
+
+            val position = Position(
+              src = historyEntries.head.pos.src,
+              component = componentName,
+              idx = -1,
+              sublinkIdx = None
+            )
+
+            HistoryEntry(
+              from = new DateTime(firstSeen),
+              to = new DateTime(lastSeen),
+              targetUrl = url,
+              pos = position
+            )
+          }
+        }.toList
+    }.toList.flatten.sortBy(_.from).reverse
+  }
+
   def latestBySource(url: String): List[HistoryEntry] = {
     val groupedBySourcePage = findHistory(url).groupBy(p => p.pos.src.url)
     groupedBySourcePage.map {
