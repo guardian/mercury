@@ -98,7 +98,7 @@ object Store {
   def findHistory(url: String): List[HistoryEntry] = {
     val q = new Query("history")
       .setFilter(FilterOperator.EQUAL.of("targetUrl", url.asLink))
-    ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList
+    ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList.sortBy(_.from).reverse
   }
 
   def latestBySource(url: String): List[HistoryEntry] = {
