@@ -1,13 +1,12 @@
 package mercury
 
 import java.net.URL
-import com.google.appengine.api.datastore.{Link => GaeLink, _}
-import org.slf4j.LoggerFactory
-import org.joda.time.DateTime
-import collection.JavaConverters._
 import java.util.Date
-import com.google.appengine.api.datastore
-import datastore.Query.{CompositeFilterOperator, SortDirection, FilterOperator, FilterPredicate}
+import com.google.appengine.api.datastore.Query.{CompositeFilterOperator, FilterOperator}
+import com.google.appengine.api.datastore.{Link => GaeLink, _}
+import org.joda.time.DateTime
+import org.slf4j.LoggerFactory
+import scala.collection.JavaConverters._
 
 object Store {
 
@@ -102,20 +101,22 @@ object Store {
   }
 
   def findHistoryByContainer(url: String): List[HistoryEntry] = {
-    val history = findHistory(url).filterNot(h => h.pos.component == "most-popular")
+    val history = findHistory(url).filterNot {
+      h => h.pos.component == "most-popular" || h.pos.component.startsWith("popular-in-")
+    }
 
-    val groupedByFront: Map[String, List[HistoryEntry]] = history.groupBy(_.pos.src.url.toString)
+    val groupedByFront = history.groupBy(_.pos.src.url.toString)
 
     groupedByFront.map {
-      case (frontUrl, historyEntries) =>
-        val groupedByComponent = historyEntries.groupBy(_.pos.component)
+      case (frontUrl, historyEntriesOnFront) =>
+        val groupedByComponent = historyEntriesOnFront.groupBy(_.pos.component)
         groupedByComponent.map {
-          case (componentName, historyEntries) => {
-            val firstSeen = historyEntries.reduceLeft((l,r) => if(l.from.getMillis < r.from.getMillis) l else r).from.getMillis
-            val lastSeen = historyEntries.reduceLeft((l,r) => if(l.to.getMillis > r.to.getMillis) l else r).to.getMillis
+          case (componentName, historyEntriesInComponent) =>
+            val firstSeen = reduce(historyEntriesInComponent, min).from.getMillis
+            val lastSeen = reduce(historyEntriesInComponent, max).to.getMillis
 
             val position = Position(
-              src = historyEntries.head.pos.src,
+              src = historyEntriesInComponent.head.pos.src,
               component = componentName,
               idx = None,
               sublinkIdx = None
@@ -127,8 +128,15 @@ object Store {
               targetUrl = url,
               pos = position
             )
-          }
-        }.toList
+        }
     }.toList.flatten.sortBy(_.from).reverse
   }
+
+  type ReduceLeftComparator = (DateTime, DateTime) => Boolean
+
+  def reduce(entries: List[HistoryEntry], comparator: ReduceLeftComparator): HistoryEntry =
+    entries.reduceLeft((l,r) => if(comparator(l.from, r.from)) l else r)
+
+  def min(thiz: DateTime, that: DateTime): Boolean = thiz.getMillis < that.getMillis
+  def max(thiz: DateTime, that: DateTime): Boolean = thiz.getMillis > that.getMillis
 }
