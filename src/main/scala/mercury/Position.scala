@@ -4,15 +4,15 @@ package mercury
 case class Position(
   src: Page,
   component: String,
-  idx: Int,
+  idx: Option[Int],
   sublinkIdx: Option[Int]
 ) {
   def inWords =
-    s"""${src.name} "${component}" position $idx""" +
+    s"""${src.name} "$component" position ${idx.getOrElse("?")}""" +
       sublinkIdx.map(" sublink " + _).getOrElse("")
 
   def inWordsWithoutPageName =
-    s""""${component}" position $idx""" +
+    s""""$component" position ${idx.getOrElse("?")}""" +
       sublinkIdx.map(" sublink " + _).getOrElse("")
 
   def isSublink = sublinkIdx.isDefined

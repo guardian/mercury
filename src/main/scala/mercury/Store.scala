@@ -73,7 +73,7 @@ object Store {
     Position(
       src = Page.fromUrl(e.getProperty("srcUrl").asInstanceOf[GaeLink].getValue),
       component = e.getProperty("component").toString,
-      idx = e.getProperty("topPosition").asInstanceOf[Long].toInt,
+      idx = Some(e.getProperty("topPosition").asInstanceOf[Long].toInt),
       sublinkIdx = Option(e.getProperty("sublinkPosition")).map(_.asInstanceOf[Long].toInt)
     )
   }
@@ -81,7 +81,7 @@ object Store {
   private def writePosition(p: Position, e: Entity) {
     e.setProperty("srcUrl", p.src.url.asLink)
     e.setProperty("component", p.component)
-    e.setProperty("topPosition", p.idx)
+    p.idx.foreach(e.setProperty("topPosition", _))
     p.sublinkIdx.foreach(e.setProperty("sublinkPosition", _))
     e.setProperty("pos", p.inWords)
   }
@@ -117,7 +117,7 @@ object Store {
             val position = Position(
               src = historyEntries.head.pos.src,
               component = componentName,
-              idx = -1,
+              idx = None,
               sublinkIdx = None
             )
 
@@ -130,12 +130,5 @@ object Store {
           }
         }.toList
     }.toList.flatten.sortBy(_.from).reverse
-  }
-
-  def latestBySource(url: String): List[HistoryEntry] = {
-    val groupedBySourcePage = findHistory(url).groupBy(p => p.pos.src.url)
-    groupedBySourcePage.map {
-      case (url, promotions) => promotions.sortBy(p => p.to).reverse.head
-    }.toList
   }
 }

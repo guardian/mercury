@@ -34,11 +34,17 @@ object PageScanner {
         .find(_.hasAttr("data-component"))
         .map(_.attr("data-component"))
 
-    val links = for (link <- elems) yield {
-      val href = link.attr("abs:href").takeWhile('?' != _).takeWhile('#' != _)
-      val comp = findDataComponent(link)
-      val isSublink = link.parents().asScala.exists(e => e.attr("data-link-name").contains("sublink"))
-      SimpleLink(href, comp, isSublink)
+    val links = elems.flatMap { link =>
+
+      val component = findDataComponent(link).filterNot {
+        c => c == "most-popular" || c.startsWith("popular-in-")
+      }
+
+      component.map { c =>
+        val href = link.attr("abs:href").takeWhile('?' != _).takeWhile('#' != _)
+        val isSublink = link.parents().asScala.exists(e => e.attr("data-link-name").contains("sublink"))
+        SimpleLink(href, Some(c), isSublink)
+      }.toList
     }
 
     val grouped = links.filter(_.isContent).groupBy(_.componentName)
@@ -51,7 +57,7 @@ object PageScanner {
       componentName <- optionalComponent
     } yield {
       val simpleComp = componentName.split(":").map(_.trim).filterNot(_.isEmpty).last
-      val position = Position(page, simpleComp, topPos, sublinkPos)
+      val position = Position(page, simpleComp, Some(topPos), sublinkPos)
       Promotion(dt, href, position)
     }
 
