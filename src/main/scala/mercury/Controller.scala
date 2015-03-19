@@ -1,12 +1,11 @@
 package mercury
 
-import unfiltered.request._
-import unfiltered.response._
-import org.joda.time.format.ISODateTimeFormat
-import unfiltered.response.ResponseString
+import javax.servlet.http.HttpServletRequest
+import com.google.appengine.api.datastore.{Key, KeyFactory}
 import org.joda.time.DateTime
-import com.google.appengine.api.datastore.{KeyFactory, Key}
-import java.net.URL
+import org.joda.time.format.ISODateTimeFormat
+import unfiltered.request._
+import unfiltered.response.{ResponseString, _}
 
 class Controller extends unfiltered.filter.Plan {
   val dateFormat = ISODateTimeFormat.dateTimeNoMillis()
@@ -37,46 +36,11 @@ class Controller extends unfiltered.filter.Plan {
       ResponseString(html.history.render(url.getOrElse(""), history).body) ~> HtmlContent
 
     case r@ GET(Path("/history.json") & Params(p)) =>
-      val url = p("url").headOption getOrElse sys.error("missing url")
-      val callback = p("callback").headOption
-      val tz = p("tz").headOption
-      val history = Store.findHistory(url)
+      renderHistory(r, p, Store.findHistory)
 
-      val json = renderJsonResponse(history, tz)
 
-      val resp = callback.map(
-        c => ResponseString(s"$c($json)") ~> JsContent
-      ) getOrElse (
-        ResponseString(json) ~> JsonContent
-      )
-
-      val origin = r.headers("Origin").toList.headOption
-
-      Cors.headers(origin).map { originHeader =>
-        Ok ~> originHeader ~> resp
-      }.getOrElse {
-        Ok ~> resp
-      }
-
-    case r@ GET(Path("/latest.json") & Params(p)) =>
-      val url = p("url").headOption getOrElse sys.error("missing url")
-      val callback = p("callback").headOption
-      val history = Store.latestBySource(url)
-
-      val json = renderJsonResponse(history)
-      val resp = callback.map(
-        c => ResponseString(s"$c($json)") ~> JsContent
-      ) getOrElse (
-        ResponseString(json) ~> JsonContent
-      )
-
-      val origin = r.headers("Origin").toList.headOption
-
-      Cors.headers(origin).map { originHeader =>
-        Ok ~> originHeader ~> resp
-      }.getOrElse {
-        Ok ~> resp
-      }
+    case r@ GET(Path("/history-by-container.json") & Params(p)) =>
+      renderHistory(r, p, Store.findHistoryByContainer)
 
     case GET(Path("/scan") & Params(p)) =>
       val url = p("url").headOption
@@ -89,9 +53,31 @@ class Controller extends unfiltered.filter.Plan {
 
   }
 
+  def renderHistory(r: HttpRequest[HttpServletRequest], params: Map[String, Seq[String]], func: (String) => List[HistoryEntry]) = {
+    val url = params("url").headOption getOrElse sys.error("missing url")
+    val callback = params("callback").headOption
+    val tz = params("tz").headOption
+    val history = func(url)
+
+    val json = renderJsonResponse(history, tz)
+    val resp = callback.map(
+      c => ResponseString(s"$c($json)") ~> JsContent
+    ) getOrElse (
+      ResponseString(json) ~> JsonContent
+      )
+
+    val origin = r.headers("Origin").toList.headOption
+
+    Cors.headers(origin).map { originHeader =>
+      Ok ~> originHeader ~> resp
+    }.getOrElse {
+      Ok ~> resp
+    }
+  }
+
   def renderJsonResponse(entries: List[HistoryEntry], tz: Option[String] = None): String = {
-    import spray.json._
     import spray.json.DefaultJsonProtocol._
+    import spray.json._
 
     case class HistoryResponse(
       from: Long,
@@ -104,7 +90,7 @@ class Controller extends unfiltered.filter.Plan {
       srcPageUrl: String,
 
       component: String,
-      idx: Int,
+      idx: Option[Int],
       sublinkIdx: Option[Int]
     )
     implicit val historyResponseFormat = jsonFormat9(HistoryResponse)

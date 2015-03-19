@@ -1,13 +1,12 @@
 package mercury
 
 import java.net.URL
-import com.google.appengine.api.datastore.{Link => GaeLink, _}
-import org.slf4j.LoggerFactory
-import org.joda.time.DateTime
-import collection.JavaConverters._
 import java.util.Date
-import com.google.appengine.api.datastore
-import datastore.Query.{CompositeFilterOperator, SortDirection, FilterOperator, FilterPredicate}
+import com.google.appengine.api.datastore.Query.{CompositeFilterOperator, FilterOperator}
+import com.google.appengine.api.datastore.{Link => GaeLink, _}
+import org.joda.time.DateTime
+import org.slf4j.LoggerFactory
+import scala.collection.JavaConverters._
 
 object Store {
 
@@ -73,7 +72,7 @@ object Store {
     Position(
       src = Page.fromUrl(e.getProperty("srcUrl").asInstanceOf[GaeLink].getValue),
       component = e.getProperty("component").toString,
-      idx = e.getProperty("topPosition").asInstanceOf[Long].toInt,
+      idx = Option(e.getProperty("topPosition").asInstanceOf[Long].toInt),
       sublinkIdx = Option(e.getProperty("sublinkPosition")).map(_.asInstanceOf[Long].toInt)
     )
   }
@@ -81,7 +80,7 @@ object Store {
   private def writePosition(p: Position, e: Entity) {
     e.setProperty("srcUrl", p.src.url.asLink)
     e.setProperty("component", p.component)
-    e.setProperty("topPosition", p.idx)
+    p.idx.foreach(e.setProperty("topPosition", _))
     p.sublinkIdx.foreach(e.setProperty("sublinkPosition", _))
     e.setProperty("pos", p.inWords)
   }
@@ -101,10 +100,44 @@ object Store {
     ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList.sortBy(_.from).reverse
   }
 
-  def latestBySource(url: String): List[HistoryEntry] = {
-    val groupedBySourcePage = findHistory(url).groupBy(p => p.pos.src.url)
-    groupedBySourcePage.map {
-      case (url, promotions) => promotions.sortBy(p => p.to).reverse.head
-    }.toList
+  def findHistoryByContainer(url: String): List[HistoryEntry] = {
+    val history = findHistory(url).filterNot {
+      h => h.pos.component == "most-popular" || h.pos.component.startsWith("popular-in-")
+    }
+
+    val groupedByFront = history.groupBy(_.pos.src.url.toString)
+
+    groupedByFront.map {
+      case (frontUrl, historyEntriesOnFront) =>
+        val groupedByComponent = historyEntriesOnFront.groupBy(_.pos.component)
+        groupedByComponent.map {
+          case (componentName, historyEntriesInComponent) =>
+            val firstSeen = reduce(historyEntriesInComponent, fromDateTime, min).from.getMillis
+            val lastSeen = reduce(historyEntriesInComponent, toDateTime, max).to.getMillis
+
+            val position = Position(
+              src = historyEntriesInComponent.head.pos.src,
+              component = componentName
+            )
+
+            HistoryEntry(
+              from = new DateTime(firstSeen),
+              to = new DateTime(lastSeen),
+              targetUrl = url,
+              pos = position
+            )
+        }
+    }.toList.flatten.sortBy(_.from).reverse
   }
+
+  type DateTimeRetriever = (HistoryEntry) => DateTime
+  def fromDateTime(he: HistoryEntry): DateTime = he.from
+  def toDateTime(he: HistoryEntry): DateTime = he.to
+
+  def reduce(entries: List[HistoryEntry], getDateTime: DateTimeRetriever, comparator: ReduceLeftComparator): HistoryEntry =
+    entries.reduceLeft((l,r) => if(comparator(getDateTime(l), getDateTime(r))) l else r)
+
+  type ReduceLeftComparator = (DateTime, DateTime) => Boolean
+  def min(thiz: DateTime, that: DateTime): Boolean = thiz.getMillis < that.getMillis
+  def max(thiz: DateTime, that: DateTime): Boolean = thiz.getMillis > that.getMillis
 }
