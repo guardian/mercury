@@ -97,7 +97,7 @@ object Store {
   def findHistory(url: String): List[HistoryEntry] = {
     val q = new Query("history")
       .setFilter(FilterOperator.EQUAL.of("targetUrl", url.asLink))
-    ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList.sortBy(_.from).reverse
+    ds.prepare(q).asIterable.asScala.map(readHistoryEntry).toList.sortBy(_.from)
   }
 
   def findHistoryByContainer(url: String): List[HistoryEntry] = {
@@ -127,7 +127,7 @@ object Store {
               pos = position
             )
         }
-    }.toList.flatten.sortBy(_.from).reverse
+    }.toList.flatten.sortBy(_.from)
   }
 
   type DateTimeRetriever = (HistoryEntry) => DateTime
